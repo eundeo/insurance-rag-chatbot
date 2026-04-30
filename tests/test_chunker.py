@@ -57,3 +57,37 @@ def test_chunk_pages_preserves_metadata():
     assert first["metadata"]["chapter"] == "제3장 검체 검사료"
     assert first["metadata"]["section"] == "[산정지침]"
     assert first["metadata"]["codes"] == ["AA157"]
+
+
+def test_section_metadata_ignores_long_body_sentence():
+    state = {"volume": None, "part": None, "chapter": None, "section": "나. 재진 진찰료"}
+    long_body = (
+        "요-52) (라) 중환자실 입원료(요-53), 다만, AJ002, 19002는 제외 "
+        "(마) 격리실 입원료(요-54) (바) 요양병원 임종실 입원 정액(요-30) "
+        "전문병원 관리료 및 의료질평가 지원금을 산정하지 아니한다."
+    )
+
+    next_state = detect_headers(long_body, state)
+
+    assert next_state["section"] == "나. 재진 진찰료"
+
+
+def test_section_metadata_accepts_short_item_titles():
+    state = {"volume": None, "part": None, "chapter": None, "section": None}
+
+    assert (
+        detect_headers("나. 재진 진찰료 Established Patient", state)["section"]
+        == "나. 재진 진찰료"
+    )
+    assert (
+        detect_headers("가-1 외래환자 진찰료 Outpatient Care", state)["section"]
+        == "가-1 외래환자 진찰료"
+    )
+
+
+def test_section_metadata_ignores_short_code_body_fragment():
+    state = {"volume": None, "part": None, "chapter": None, "section": "제1절 기본진료료"}
+
+    next_state = detect_headers("VA800 사용, 소아전문 VA600 사용]", state)
+
+    assert next_state["section"] == "제1절 기본진료료"
