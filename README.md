@@ -87,6 +87,22 @@ Run a keyword search:
 python scripts/search_bm25.py --query "재진 진찰료"
 ```
 
+## Chroma Vector Search
+
+Build the Chroma index from `data/processed/chunks.jsonl`:
+
+```bash
+python scripts/build_chroma.py
+```
+
+Run a semantic search:
+
+```bash
+python scripts/search_chroma.py --query "치과의원 재진 진찰료 야간 가산" --top-k 5
+```
+
+The first run may take time because the `BAAI/bge-m3` embedding model must be downloaded. `data/index/chroma` is ignored by Git and should not be committed.
+
 ## Development Roadmap
 
 - M1-0: Project scaffold
