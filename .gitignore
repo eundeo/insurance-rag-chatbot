@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+data/raw/
+data/processed/
+data/index/
+chroma_store/
+*.db
+*.sqlite3
+
+.venv/
+venv/
+env/

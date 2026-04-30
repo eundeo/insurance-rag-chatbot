@@ -1,0 +1,11 @@
+pdfplumber
+PyMuPDF
+chromadb
+sentence-transformers
+rank-bm25
+kiwipiepy
+streamlit
+requests
+python-dotenv
+pytest
+tqdm
