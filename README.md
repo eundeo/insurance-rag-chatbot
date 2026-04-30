@@ -103,6 +103,16 @@ python scripts/search_chroma.py --query "치과의원 재진 진찰료 야간 �
 
 The first run may take time because the `BAAI/bge-m3` embedding model must be downloaded. `data/index/chroma` is ignored by Git and should not be committed.
 
+## Hybrid Search
+
+Hybrid search requires both BM25 and Chroma indexes:
+
+```bash
+python scripts/build_bm25.py
+python scripts/build_chroma.py
+python scripts/search_hybrid.py --query "재진 진찰료 야간 가산" --top-k 8
+```
+
 ## Development Roadmap
 
 - M1-0: Project scaffold
