@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 VOLUME_RE = re.compile(r"제\d+편[^\n]*")
 PART_RE = re.compile(r"제\d+부[^\n]*")
 CHAPTER_RE = re.compile(r"제\d+장[^\n]*")
-SECTION_RE = re.compile(r"(제\d+절[^\n]*|\[산정지침\]|[가-힣]-\d+[^\n]*)")
 CODE_RE = re.compile(r"\b[A-Z]{2}\d+\b|[가-힣]-\d+")
+SECTION_MAX_CHARS = 80
 
 TARGET_CHARS = 1000
 MIN_CHARS = 600
@@ -54,10 +54,58 @@ def detect_headers(text: str, state: dict[str, str | None]) -> dict[str, str | N
         next_state["chapter"] = match.group(0).strip()
         next_state["section"] = None
 
-    if match := SECTION_RE.search(text):
-        next_state["section"] = match.group(0).strip()
+    if section := _extract_section_header(text):
+        next_state["section"] = section
 
     return next_state
+
+
+def _extract_section_header(text: str) -> str | None:
+    candidate = " ".join(text.strip().split())
+    if not candidate or len(candidate) > SECTION_MAX_CHARS:
+        return None
+
+    if _looks_like_body_sentence(candidate):
+        return None
+
+    if re.fullmatch(r"\[산정지침\]", candidate):
+        return candidate
+
+    if re.fullmatch(r"제\d+절\s+.+", candidate):
+        return candidate
+
+    if re.fullmatch(r"[가-힣]-\d+[가-힣A-Za-z0-9\s･ㆍ·(),/-]*", candidate):
+        return _strip_english_tail(candidate)
+
+    if re.fullmatch(r"[가-힣]\.\s*[가-힣A-Za-z0-9\s･ㆍ·()/-]{1,40}", candidate):
+        return _strip_english_tail(candidate)
+
+    if _has_short_title_code(candidate):
+        return candidate
+
+    return None
+
+
+def _looks_like_body_sentence(text: str) -> bool:
+    if text.count(",") + text.count("，") >= 2:
+        return True
+    if text.count("(") + text.count(")") >= 6:
+        return True
+    if re.search(r"(한다|한다\.|하며|하고|하되|경우|따라|의하여|제외|산정하지)", text):
+        return True
+    return False
+
+
+def _strip_english_tail(text: str) -> str:
+    return re.sub(r"\s+[A-Za-z][A-Za-z\s/()-]*$", "", text).strip()
+
+
+def _has_short_title_code(text: str) -> bool:
+    has_code = bool(CODE_RE.search(text) or re.search(r"\b\d{5}\b", text))
+    has_code_heading = bool(re.search(r"분류번호|코\s*드|분\s*류|점\s*수", text))
+    if not has_code or not has_code_heading:
+        return False
+    return not re.search(r"[.!?。]", text)
 
 
 def chunk_pages(
@@ -142,7 +190,7 @@ def _looks_like_header(text: str) -> bool:
         VOLUME_RE.match(text)
         or PART_RE.match(text)
         or CHAPTER_RE.match(text)
-        or SECTION_RE.match(text)
+        or _extract_section_header(text)
     )
 
 
@@ -195,6 +243,12 @@ def _segments_to_chunks(
             current_meta = deepcopy(segment.metadata)
             page_start = segment.page_no
             page_end = segment.page_no
+        elif (
+            metadata_changed
+            and segment.metadata.get("section")
+            and not current_meta.get("section")
+        ):
+            current_meta = deepcopy(segment.metadata)
         elif metadata_changed and len(current_text) < 200:
             current_meta = deepcopy(segment.metadata)
         elif projected_length > target_chars and len(current_text) >= MIN_CHARS:
