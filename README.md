@@ -63,6 +63,16 @@ python scripts/check_setup.py
 
 The script prints configuration values, creates required processed/index directories, checks directory existence, and reports whether the configured PDF file exists.
 
+## PDF Parser Smoke Test
+
+Place the source PDF under `data/raw/`, then run:
+
+```bash
+python scripts/parse_pdf_test.py --pdf data/raw/BZ202603053039374.pdf --limit 5
+```
+
+The script extracts page-level text and prints `page_no`, `text_length`, and a short `text_preview` for the first pages.
+
 ## Development Roadmap
 
 - M1-0: Project scaffold
