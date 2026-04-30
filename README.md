@@ -63,6 +63,46 @@ python scripts/check_setup.py
 
 The script prints configuration values, creates required processed/index directories, checks directory existence, and reports whether the configured PDF file exists.
 
+## PDF Parser Smoke Test
+
+Place the source PDF under `data/raw/`, then run:
+
+```bash
+python scripts/parse_pdf_test.py --pdf data/raw/BZ202603053039374.pdf --limit 5
+```
+
+The script extracts page-level text and prints `page_no`, `text_length`, and a short `text_preview` for the first pages.
+
+## BM25 Keyword Search
+
+Build the BM25 index from `data/processed/chunks.jsonl`:
+
+```bash
+python scripts/build_bm25.py
+```
+
+Run a keyword search:
+
+```bash
+python scripts/search_bm25.py --query "재진 진찰료"
+```
+
+## Chroma Vector Search
+
+Build the Chroma index from `data/processed/chunks.jsonl`:
+
+```bash
+python scripts/build_chroma.py
+```
+
+Run a semantic search:
+
+```bash
+python scripts/search_chroma.py --query "치과의원 재진 진찰료 야간 가산" --top-k 5
+```
+
+The first run may take time because the `BAAI/bge-m3` embedding model must be downloaded. `data/index/chroma` is ignored by Git and should not be committed.
+
 ## Development Roadmap
 
 - M1-0: Project scaffold
