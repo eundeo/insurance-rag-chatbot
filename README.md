@@ -150,6 +150,30 @@ For out-of-document questions, the expected answer is:
 이 질문은 제공된 보험 고시 문서와 직접 관련이 없어 답변할 수 없습니다.
 ```
 
+## Streamlit UI
+
+Prepare indexes and start Ollama:
+
+```bash
+python scripts/build_bm25.py
+python scripts/build_chroma.py
+ollama serve
+```
+
+Run the web UI:
+
+```bash
+streamlit run src/ui/streamlit_app.py
+```
+
+Example questions:
+
+```text
+재진 진찰료 야간 가산 규정 알려줘
+AA222는 어떤 항목이야?
+오늘 날씨 어때?
+```
+
 ## Development Roadmap
 
 - M1-0: Project scaffold
