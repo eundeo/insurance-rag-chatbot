@@ -103,6 +103,53 @@ python scripts/search_chroma.py --query "치과의원 재진 진찰료 야간 �
 
 The first run may take time because the `BAAI/bge-m3` embedding model must be downloaded. `data/index/chroma` is ignored by Git and should not be committed.
 
+## Hybrid Search
+
+Hybrid search requires both BM25 and Chroma indexes:
+
+```bash
+python scripts/build_bm25.py
+python scripts/build_chroma.py
+python scripts/search_hybrid.py --query "재진 진찰료 야간 가산" --top-k 8
+```
+
+## Local RAG CLI
+
+Start Ollama and pull the local model:
+
+```bash
+ollama serve
+ollama pull qwen2.5:7b-instruct
+```
+
+Prepare indexes:
+
+```bash
+python scripts/build_bm25.py
+python scripts/build_chroma.py
+```
+
+Run the CLI:
+
+```bash
+python scripts/cli.py
+```
+
+Example questions:
+
+```text
+재진 진찰료 야간 가산 규정 알려줘
+AA222는 어떤 항목이야?
+치과에서 장애인 재진 진찰료 가산은?
+오늘 날씨 어때?
+```
+
+For out-of-document questions, the expected answer is:
+
+```text
+이 질문은 제공된 보험 고시 문서와 직접 관련이 없어 답변할 수 없습니다.
+```
+
 ## Development Roadmap
 
 - M1-0: Project scaffold
