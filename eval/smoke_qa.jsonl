@@ -1,0 +1,10 @@
+{"query": "AA222는 무엇인가?", "expected_pages": [101, 102], "expected_keywords": ["AA222", "재진 진찰료"], "type": "code"}
+{"query": "AA157 코드가 포함된 초진 진찰료 항목은?", "expected_pages": [100, 101], "expected_keywords": ["AA157", "초진"], "type": "code"}
+{"query": "AA253은 어떤 재진 진찰료 코드인가?", "expected_pages": [102], "expected_keywords": ["AA253", "재진"], "type": "code"}
+{"query": "VA200 응급의료관리료 기관등급 코드는?", "expected_pages": [708], "expected_keywords": ["VA200", "응급의료관리료"], "type": "code"}
+{"query": "응-3 중증응급환자 진료구역 관찰료는 어디에 있나?", "expected_pages": [715], "expected_keywords": ["응-3", "중증응급환자"], "type": "code"}
+{"query": "재진 진찰료 야간 가산 규정은?", "expected_pages": [101, 102], "expected_keywords": ["재진", "야간", "가산"], "type": "semantic"}
+{"query": "치과에서 장애인 재진 진찰료 가산은?", "expected_pages": [101, 102], "expected_keywords": ["치과", "장애인", "재진"], "type": "semantic"}
+{"query": "토요일 오전 진찰료 가산 규정은?", "expected_pages": [100, 101], "expected_keywords": ["토요일", "09시", "진찰료"], "type": "semantic"}
+{"query": "응급진료 전문의 진찰료 등급별 산정은?", "expected_pages": [708, 709], "expected_keywords": ["응급진료 전문의", "등급", "산정"], "type": "semantic"}
+{"query": "외래 의료질평가지원금 산정횟수 기준은?", "expected_pages": [97, 99, 100], "expected_keywords": ["외래 의료질평가지원금", "산정횟수"], "type": "semantic"}

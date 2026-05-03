@@ -1,31 +1,27 @@
 # insurance-rag-chatbot
 
-Local RAG chatbot for Korean insurance and medical fee notice documents.
+보험 고시 PDF 문서를 기반으로 검색하고, 로컬 LLM으로 출처 기반 답변을 생성하는 RAG 챗봇입니다.
 
-## Project Overview
+## 프로젝트 소개
 
-This project builds a local Retrieval-Augmented Generation chatbot for Korean health insurance notice PDF documents. Users ask questions in natural language, the system retrieves relevant clauses, and a local LLM generates source-grounded answers.
+이 프로젝트는 건강보험 고시 문서를 대상으로 다음 기능을 제공합니다.
 
-## Alpha Goals
-
-- PDF parsing
-- Hierarchical chunking
-- ChromaDB vector indexing
-- BM25 keyword indexing
-- Hybrid retrieval
-- Ollama local LLM connection
-- Streamlit chat UI
+- PDF 페이지 텍스트 추출
+- 보험 고시 구조 기반 청킹
+- BM25 키워드 검색
+- ChromaDB 벡터 검색
+- RRF 기반 Hybrid 검색
+- Ollama 로컬 LLM 답변 생성
+- Streamlit 웹 UI
 - Smoke evaluation
 
-## Local Development Environment
+## 시스템 구조
 
-- Python 3.10+
-- Ollama installed locally for later LLM integration
-- Source PDFs placed manually under `data/raw/`
+```text
+PDF -> Chunk -> BM25 + Chroma -> Hybrid Retriever -> Ollama LLM -> CLI / Streamlit UI
+```
 
-This repository does not call external LLM APIs. The alpha target is local development only.
-
-## Installation
+## 설치 방법
 
 ```bash
 python -m venv .venv
@@ -33,15 +29,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Environment Variables
-
-Create a local `.env` file from the example.
+## 환경 설정
 
 ```bash
 cp .env.example .env
 ```
 
-Default values:
+기본값:
 
 ```bash
 PDF_PATH=data/raw/BZ202603053039374.pdf
@@ -53,89 +47,92 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b-instruct
 ```
 
-## Check Initial Setup
+## 데이터 준비
 
-Run:
+PDF 원본 파일을 `data/raw/`에 넣습니다. `data/raw/`, `data/processed/`, `data/index/`는 Git에 커밋하지 않습니다.
+
+## 실행 순서
+
+초기 설정 확인:
 
 ```bash
 python scripts/check_setup.py
 ```
 
-The script prints configuration values, creates required processed/index directories, checks directory existence, and reports whether the configured PDF file exists.
-
-## PDF Parser Smoke Test
-
-Place the source PDF under `data/raw/`, then run:
+청킹:
 
 ```bash
-python scripts/parse_pdf_test.py --pdf data/raw/BZ202603053039374.pdf --limit 5
+python scripts/ingest.py --stage chunks --pdf data/raw/BZ202603053039374.pdf
 ```
 
-The script extracts page-level text and prints `page_no`, `text_length`, and a short `text_preview` for the first pages.
-
-## BM25 Keyword Search
-
-Build the BM25 index from `data/processed/chunks.jsonl`:
+BM25 인덱스 생성:
 
 ```bash
 python scripts/build_bm25.py
 ```
 
-Run a keyword search:
-
-```bash
-python scripts/search_bm25.py --query "재진 진찰료"
-```
-
-## Chroma Vector Search
-
-Build the Chroma index from `data/processed/chunks.jsonl`:
+Chroma 인덱스 생성:
 
 ```bash
 python scripts/build_chroma.py
 ```
 
-Run a semantic search:
-
-```bash
-python scripts/search_chroma.py --query "치과의원 재진 진찰료 야간 가산" --top-k 5
-```
-
-The first run may take time because the `BAAI/bge-m3` embedding model must be downloaded. `data/index/chroma` is ignored by Git and should not be committed.
-
-## Hybrid Search
-
-Hybrid search requires both BM25 and Chroma indexes:
-
-```bash
-python scripts/build_bm25.py
-python scripts/build_chroma.py
-python scripts/search_hybrid.py --query "재진 진찰료 야간 가산" --top-k 8
-```
-
-## Local RAG CLI
-
-Start Ollama and pull the local model:
+Ollama 실행:
 
 ```bash
 ollama serve
 ollama pull qwen2.5:7b-instruct
 ```
 
-Prepare indexes:
-
-```bash
-python scripts/build_bm25.py
-python scripts/build_chroma.py
-```
-
-Run the CLI:
+CLI 실행:
 
 ```bash
 python scripts/cli.py
 ```
 
-Example questions:
+Streamlit UI 실행:
+
+```bash
+streamlit run src/ui/streamlit_app.py
+```
+
+## 검색 스크립트
+
+BM25 검색:
+
+```bash
+python scripts/search_bm25.py --query "재진 진찰료" --top-k 5
+```
+
+Chroma 검색:
+
+```bash
+python scripts/search_chroma.py --query "치과의원 재진 진찰료 야간 가산" --top-k 5
+```
+
+Hybrid 검색:
+
+```bash
+python scripts/search_hybrid.py --query "재진 진찰료 야간 가산" --top-k 8
+```
+
+## 평가
+
+Smoke evaluation:
+
+```bash
+python scripts/eval.py
+```
+
+평가 데이터는 `eval/smoke_qa.jsonl`에 있으며, 코드 기반 질의 5개와 의미 기반 질의 5개로 구성됩니다.
+
+측정 지표:
+
+- `Recall@8`: top 8 결과 중 expected page가 포함된 chunk가 있는지
+- `Page Accuracy`: top 1 결과 페이지가 expected page와 같거나 +-1 범위인지
+- `Keyword Match`: top 8 결과 텍스트에 기대 키워드가 포함되는지
+
+## 예시 질문
 
 ```text
 재진 진찰료 야간 가산 규정 알려줘
@@ -144,53 +141,25 @@ AA222는 어떤 항목이야?
 오늘 날씨 어때?
 ```
 
-For out-of-document questions, the expected answer is:
+문서 밖 질문은 다음처럼 차단됩니다.
 
 ```text
 이 질문은 제공된 보험 고시 문서와 직접 관련이 없어 답변할 수 없습니다.
 ```
 
-## Streamlit UI
+## 제한 사항
 
-Prepare indexes and start Ollama:
+- 법적 효력이 있는 판단을 제공하지 않습니다.
+- 의학적 최종 판단을 대신하지 않습니다.
+- OCR은 지원하지 않습니다.
+- 멀티턴 질의 재작성은 지원하지 않습니다.
+- 세션 영속화와 멀티 사용자 인증은 없습니다.
+- Docker/클라우드 배포는 포함하지 않습니다.
 
-```bash
-python scripts/build_bm25.py
-python scripts/build_chroma.py
-ollama serve
-```
+## 개발 로드맵
 
-Run the web UI:
-
-```bash
-streamlit run src/ui/streamlit_app.py
-```
-
-Example questions:
-
-```text
-재진 진찰료 야간 가산 규정 알려줘
-AA222는 어떤 항목이야?
-오늘 날씨 어때?
-```
-
-## Development Roadmap
-
-- M1-0: Project scaffold
-- M1-1: PDF parser
-- M1-2: Hierarchical chunker
-- M1-3: ChromaDB vector index
-- M1-4: BM25 keyword index
-- M1-5: Hybrid retriever
-- M1-6: Ollama local LLM client
-- M1-7: Streamlit chat UI
-- M1-8: Smoke evaluation
-
-## Non-Goals
-
-- OCR
-- Multi-user authentication
-- Cloud deployment
-- External LLM API calls
-- Docker/CI/CD
-- Automated legal judgment
+- M1: PDF parsing, hierarchical chunking
+- M2: BM25, Chroma, Hybrid retrieval
+- M3: Ollama RAG pipeline
+- M4: Streamlit UI
+- M5: Evaluation and documentation
