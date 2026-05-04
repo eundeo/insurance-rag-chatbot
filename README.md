@@ -65,6 +65,14 @@ python scripts/check_setup.py
 python scripts/ingest.py --stage chunks --pdf data/raw/BZ202603053039374.pdf
 ```
 
+여러 PDF를 함께 검색 대상으로 넣을 때:
+
+```bash
+python scripts/ingest.py --stage chunks --pdf data/raw/BZ202603053039374.pdf 'data/raw/2.약관_신한 이지로운 실손의료보험(무배당)_20260401_0325.pdf'
+```
+
+각 청크에는 원본 파일명을 나타내는 `source_file` metadata가 저장됩니다.
+
 BM25 인덱스 생성:
 
 ```bash

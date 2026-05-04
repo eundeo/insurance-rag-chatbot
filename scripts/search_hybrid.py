@@ -66,6 +66,7 @@ def main() -> int:
         print(f"rrf_score: {result['rrf_score']:.6f}")
         print(f"bm25_rank: {result['bm25_rank']}")
         print(f"vector_rank: {result['vector_rank']}")
+        print(f"source_file: {metadata.get('source_file')}")
         print(f"page: {metadata.get('page_start')} ~ {metadata.get('page_end')}")
         print(f"section: {metadata.get('section')}")
         print(f"codes: {metadata.get('codes')}")

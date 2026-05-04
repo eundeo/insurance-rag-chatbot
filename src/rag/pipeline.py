@@ -9,6 +9,9 @@ OUT_OF_SCOPE_ANSWER = "이 질문은 제공된 보험 고시 문서와 직접 �
 INSUFFICIENT_CONTEXT_ANSWER = "제공된 문서 범위에서는 확인되지 않습니다."
 DEFAULT_RELEVANCE_THRESHOLD = 0.020
 CODE_PATTERN_RE = re.compile(r"[A-Z]{2}\d+|[가-힣]-\d+|응-\d+")
+HANGUL_RE = re.compile(r"[가-힣]")
+HAN_IDEOGRAPH_RE = re.compile(r"[\u4e00-\u9fff]")
+TOP_RANK_CUTOFF = 1
 SMALL_TALK_PATTERNS = (
     "오늘 날씨",
     "날씨 어때",
@@ -34,7 +37,21 @@ def is_relevant_query(
 
     top_score = max(float(context.get("rrf_score", 0.0)) for context in retrieved_contexts)
     effective_threshold = threshold * 0.5 if CODE_PATTERN_RE.search(query) else threshold
+    if _has_top_rank_signal(retrieved_contexts):
+        return True
+
     return top_score >= effective_threshold
+
+
+def _has_top_rank_signal(retrieved_contexts: list[dict]) -> bool:
+    for context in retrieved_contexts:
+        bm25_rank = context.get("bm25_rank")
+        vector_rank = context.get("vector_rank")
+        if bm25_rank is not None and int(bm25_rank) <= TOP_RANK_CUTOFF:
+            return True
+        if vector_rank is not None and int(vector_rank) <= TOP_RANK_CUTOFF:
+            return True
+    return False
 
 
 class RAGPipeline:
@@ -72,6 +89,9 @@ class RAGPipeline:
 
         prompt = build_rag_prompt(query, contexts)
         answer = self.llm_client.generate(prompt, temperature=temperature)
+        if _looks_like_non_korean_response(answer):
+            answer = INSUFFICIENT_CONTEXT_ANSWER
+
         return {
             "answer": answer,
             "sources": sources,
@@ -87,6 +107,15 @@ def _source_from_context(context: dict) -> dict:
         "page_end": metadata.get("page_end"),
         "section": metadata.get("section"),
         "codes": metadata.get("codes", []),
+        "source_file": metadata.get("source_file"),
         "text": context.get("text", ""),
         "rrf_score": context.get("rrf_score", 0.0),
     }
+
+
+def _looks_like_non_korean_response(answer: str) -> bool:
+    hangul_count = len(HANGUL_RE.findall(answer))
+    han_count = len(HAN_IDEOGRAPH_RE.findall(answer))
+    if han_count >= 5 and hangul_count == 0:
+        return True
+    return han_count >= 10 and han_count > hangul_count * 2

@@ -16,9 +16,9 @@ def test_detect_headers_updates_hierarchy_state():
 
 
 def test_extract_codes_deduplicates_english_and_korean_codes():
-    text = "AA157 검사료와 AB123, AA157 및 가-1 항목을 확인한다. 가-1 중복."
+    text = "AA157 검사료와 Q2333, N39.3, AB123, AA157 및 가-1, 자-233-1 항목을 확인한다."
 
-    assert extract_codes(text) == ["AA157", "AB123", "가-1"]
+    assert extract_codes(text) == ["AA157", "Q2333", "N39.3", "AB123", "가-1", "자-233-1"]
 
 
 def test_chunk_pages_splits_long_text_with_overlap():
@@ -91,3 +91,45 @@ def test_section_metadata_ignores_short_code_body_fragment():
     next_state = detect_headers("VA800 사용, 소아전문 VA600 사용]", state)
 
     assert next_state["section"] == "제1절 기본진료료"
+
+
+def test_fee_table_rows_become_atomic_chunks_with_fee_code_metadata():
+    pages = [
+        {
+            "page_no": 531,
+            "text": (
+                "제1편 행위 급여\n"
+                "분류번호 코 드 분 류 점 수 [식 도]\n"
+                "자-233 식도 절개술 Esophagotomy\n"
+                "Q2331 가. 경부접근 Cervical Approach 12,637.48 "
+                "Q2332 나. 흉부접근 Thoracic Approach 17,550.61 "
+                "자-233-1 Q2333 식도조루술 Esophagostomy 14,110.89\n"
+            ),
+        }
+    ]
+
+    chunks = chunk_pages(pages)
+    target = next(chunk for chunk in chunks if "식도조루술" in chunk["text"])
+
+    assert "Q2333" in target["metadata"]["codes"]
+    assert target["metadata"]["item_no"] == "자-233-1"
+    assert target["metadata"]["fee_codes"] == ["Q2333"]
+
+
+def test_policy_chunks_preserve_decimal_diagnosis_codes():
+    pages = [
+        {
+            "page_no": 80,
+            "text": (
+                "제3조(보장종목별 보상내용)\n"
+                "회사는 다음 질병으로 인한 의료비는 보상하지 않습니다.\n"
+                "6. 요실금(N39.3, N39.4, R32)"
+            ),
+        }
+    ]
+
+    chunks = chunk_pages(pages)
+    target = next(chunk for chunk in chunks if "요실금" in chunk["text"])
+
+    assert "N39.3" in target["metadata"]["codes"]
+    assert target["metadata"]["diagnosis_codes"] == ["N39.3", "N39.4", "R32"]

@@ -39,6 +39,13 @@ def test_build_rag_prompt_requires_sources_section():
     assert "[출처]" in prompt
 
 
+def test_build_rag_prompt_requires_korean_answer():
+    prompt = build_rag_prompt("재진 진찰료", sample_contexts())
+
+    assert "중국어" in prompt
+    assert "한국어가 아닌 언어로 답변하지 않는다" in prompt
+
+
 def test_is_relevant_query_false_for_empty_contexts():
     assert is_relevant_query("재진 진찰료", []) is False
 

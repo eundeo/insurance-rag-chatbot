@@ -17,25 +17,40 @@ from src.parser.pdf_parser import parse_pdf
 logger = logging.getLogger(__name__)
 
 
-def run_chunks_stage(pdf_path: Path) -> Path:
-    pages = parse_pdf(pdf_path)
-    chunks = chunk_pages(pages)
+def run_chunks_stage(pdf_paths: list[Path]) -> Path:
+    all_chunks = []
+    total_pages = 0
+
+    for pdf_path in pdf_paths:
+        logger.info("Parsing PDF: %s", pdf_path)
+        pages = parse_pdf(pdf_path)
+        chunks = chunk_pages(pages)
+        total_pages += len(pages)
+
+        for chunk in chunks:
+            chunk["metadata"]["source_file"] = pdf_path.name
+            chunk["metadata"]["source_path"] = str(pdf_path)
+            all_chunks.append(chunk)
+
+    for index, chunk in enumerate(all_chunks, start=1):
+        chunk["id"] = f"ch_{index:06d}"
 
     config.ensure_dirs()
     output_path = config.PROCESSED_DIR / "chunks.jsonl"
     with output_path.open("w", encoding="utf-8") as file:
-        for chunk in chunks:
+        for chunk in all_chunks:
             file.write(json.dumps(chunk, ensure_ascii=False) + "\n")
 
-    total_chunks = len(chunks)
+    total_chunks = len(all_chunks)
     avg_length = (
-        sum(chunk["metadata"]["char_count"] for chunk in chunks) / total_chunks
+        sum(chunk["metadata"]["char_count"] for chunk in all_chunks) / total_chunks
         if total_chunks
         else 0
     )
-    chunks_with_codes = sum(1 for chunk in chunks if chunk["metadata"]["codes"])
+    chunks_with_codes = sum(1 for chunk in all_chunks if chunk["metadata"]["codes"])
 
-    logger.info("Total pages: %s", len(pages))
+    logger.info("Total PDFs: %s", len(pdf_paths))
+    logger.info("Total pages: %s", total_pages)
     logger.info("Total chunks: %s", total_chunks)
     logger.info("Average length: %.1f", avg_length)
     logger.info("Chunks with codes: %s", chunks_with_codes)
@@ -49,14 +64,19 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Run ingest stages.")
     parser.add_argument("--stage", required=True, choices=["chunks"], help="Ingest stage to run.")
-    parser.add_argument("--pdf", required=True, help="Path to the source PDF.")
+    parser.add_argument(
+        "--pdf",
+        nargs="+",
+        required=True,
+        help="Path(s) to source PDF files. Pass multiple paths to index them together.",
+    )
     args = parser.parse_args()
 
-    pdf_path = Path(args.pdf)
+    pdf_paths = [Path(path) for path in args.pdf]
     try:
-        run_chunks_stage(pdf_path)
-    except FileNotFoundError:
-        print(f"PDF file not found: {pdf_path}")
+        run_chunks_stage(pdf_paths)
+    except FileNotFoundError as exc:
+        print(f"PDF file not found: {exc.filename or exc}")
         print("Put the source PDF in data/raw/ or pass a valid path with --pdf.")
         return 0
 
