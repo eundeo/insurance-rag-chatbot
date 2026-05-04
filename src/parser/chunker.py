@@ -10,7 +10,21 @@ logger = logging.getLogger(__name__)
 VOLUME_RE = re.compile(r"제\d+편[^\n]*")
 PART_RE = re.compile(r"제\d+부[^\n]*")
 CHAPTER_RE = re.compile(r"제\d+장[^\n]*")
-CODE_RE = re.compile(r"\b[A-Z]{2}\d+\b|[가-힣]-\d+")
+ARTICLE_RE = re.compile(r"제\d+조(?:의\d+)?\([^)]+\)")
+POLICY_SECTION_RE = re.compile(r"제\d+관[^\n]*")
+ICD_CODE_RE = re.compile(r"\b[A-Z]\d{2}(?:\.\d+)?\b")
+FEE_CODE_RE = re.compile(r"\b[A-Z]{1,3}\d{2,}[A-Z]?\b(?!\.)")
+KOREAN_ITEM_CODE_RE = re.compile(r"[가-힣]-\d+(?:-\d+)?")
+CODE_RE = re.compile(
+    r"\b[A-Z]\d{2}(?:\.\d+)?\b|\b[A-Z]{1,3}\d{2,}[A-Z]?\b|[가-힣]-\d+(?:-\d+)?"
+)
+PROCEDURE_FEE_CODE_PATTERN = r"(?:[NOQRS]\d{2,}[A-Z]?|QA\d{2,})"
+FEE_ROW_START_RE = re.compile(
+    rf"^(?:[가-힣]-\d+(?:-\d+)?\s+)?{PROCEDURE_FEE_CODE_PATTERN}\s+"
+)
+EMBEDDED_FEE_ROW_RE = re.compile(
+    rf"(?=\s+(?:[가-힣]-\d+(?:-\d+)?\s+)?{PROCEDURE_FEE_CODE_PATTERN}\s+)"
+)
 SECTION_MAX_CHARS = 80
 
 TARGET_CHARS = 1000
@@ -54,6 +68,12 @@ def detect_headers(text: str, state: dict[str, str | None]) -> dict[str, str | N
         next_state["chapter"] = match.group(0).strip()
         next_state["section"] = None
 
+    if match := POLICY_SECTION_RE.search(text):
+        next_state["section"] = match.group(0).strip()
+
+    if match := ARTICLE_RE.search(text):
+        next_state["section"] = match.group(0).strip()
+
     if section := _extract_section_header(text):
         next_state["section"] = section
 
@@ -73,6 +93,12 @@ def _extract_section_header(text: str) -> str | None:
 
     if re.fullmatch(r"제\d+절\s+.+", candidate):
         return candidate
+
+    if re.fullmatch(r"제\d+관\s+.+", candidate):
+        return candidate
+
+    if re.fullmatch(r"제\d+조(?:의\d+)?\([^)]+\).*", candidate):
+        return candidate[:SECTION_MAX_CHARS]
 
     if re.fullmatch(r"[가-힣]-\d+[가-힣A-Za-z0-9\s･ㆍ·(),/-]*", candidate):
         return _strip_english_tail(candidate)
@@ -162,22 +188,30 @@ def _iter_text_units(text: str) -> list[str]:
     buffer = []
 
     for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
+        raw_line = raw_line.strip()
+        if not raw_line:
             if buffer:
                 units.append(" ".join(buffer))
                 buffer = []
             continue
 
-        if _looks_like_header(line) and buffer:
-            units.append(" ".join(buffer))
-            buffer = []
+        for line in _split_embedded_fee_rows(raw_line):
+            if _looks_like_atomic_unit(line):
+                if buffer:
+                    units.append(" ".join(buffer))
+                    buffer = []
+                units.append(line)
+                continue
 
-        buffer.append(line)
+            if _looks_like_header(line) and buffer:
+                units.append(" ".join(buffer))
+                buffer = []
 
-        if _looks_like_header(line):
-            units.append(" ".join(buffer))
-            buffer = []
+            buffer.append(line)
+
+            if _looks_like_header(line):
+                units.append(" ".join(buffer))
+                buffer = []
 
     if buffer:
         units.append(" ".join(buffer))
@@ -190,8 +224,23 @@ def _looks_like_header(text: str) -> bool:
         VOLUME_RE.match(text)
         or PART_RE.match(text)
         or CHAPTER_RE.match(text)
+        or POLICY_SECTION_RE.match(text)
+        or ARTICLE_RE.match(text)
         or _extract_section_header(text)
     )
+
+
+def _split_embedded_fee_rows(text: str) -> list[str]:
+    parts = [
+        part.strip()
+        for part in EMBEDDED_FEE_ROW_RE.split(f" {text}")
+        if part.strip()
+    ]
+    return parts or [text]
+
+
+def _looks_like_atomic_unit(text: str) -> bool:
+    return bool(FEE_ROW_START_RE.match(text))
 
 
 def _segments_to_chunks(
@@ -228,6 +277,31 @@ def _segments_to_chunks(
     for segment in segments:
         segment_text = segment.text.strip()
         if not segment_text:
+            continue
+
+        if _looks_like_atomic_unit(segment_text):
+            atomic_text = segment_text
+            atomic_meta = segment.metadata
+            atomic_page_start = segment.page_no
+            if current_text and len(current_text) < 200:
+                atomic_text = _join_text(current_text, segment_text)
+                atomic_meta = current_meta or segment.metadata
+                atomic_page_start = page_start or segment.page_no
+                current_text = ""
+                current_meta = None
+                page_start = None
+                page_end = None
+            else:
+                flush()
+            chunks.append(
+                _make_chunk(
+                    chunk_no=len(chunks) + 1,
+                    text=atomic_text,
+                    metadata=atomic_meta,
+                    page_start=atomic_page_start,
+                    page_end=segment.page_no,
+                )
+            )
             continue
 
         if current_meta is None:
@@ -310,6 +384,9 @@ def _make_chunk(
     page_end: int,
 ) -> dict:
     codes = extract_codes(text)
+    item_no = _extract_item_no(text)
+    fee_codes = _extract_fee_codes(text)
+    diagnosis_codes = _extract_diagnosis_codes(text)
     return {
         "id": f"ch_{chunk_no:06d}",
         "text": text,
@@ -321,6 +398,35 @@ def _make_chunk(
             "chapter": metadata.get("chapter"),
             "section": metadata.get("section"),
             "codes": codes,
+            "item_no": item_no,
+            "fee_codes": fee_codes,
+            "diagnosis_codes": diagnosis_codes,
             "char_count": len(text),
         },
     }
+
+
+def _extract_item_no(text: str) -> str | None:
+    if match := KOREAN_ITEM_CODE_RE.search(text):
+        return match.group(0)
+    return None
+
+
+def _extract_fee_codes(text: str) -> list[str]:
+    codes = []
+    seen = set()
+    for match in FEE_CODE_RE.findall(text):
+        if match not in seen:
+            codes.append(match)
+            seen.add(match)
+    return codes
+
+
+def _extract_diagnosis_codes(text: str) -> list[str]:
+    codes = []
+    seen = set()
+    for match in ICD_CODE_RE.findall(text):
+        if match not in seen:
+            codes.append(match)
+            seen.add(match)
+    return codes

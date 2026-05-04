@@ -22,6 +22,9 @@ def build_rag_prompt(
 6. 마지막에는 반드시 [출처] 섹션을 포함한다.
 7. 법률적/의학적 최종 판단처럼 단정하지 말고 문서 검색 보조 답변으로 작성한다.
 8. 한국어로 답변한다.
+9. 중국어, 영어 등 한국어가 아닌 언어로 답변하지 않는다.
+10. 한국어로 근거를 설명할 수 없으면 정확히 다음 문장으로 답한다.
+   "제공된 문서 범위에서는 확인되지 않습니다."
 
 QUESTION:
 {query}
@@ -38,6 +41,7 @@ def _format_context(index: int, context: dict) -> str:
     page_start = metadata.get("page_start", "")
     page_end = metadata.get("page_end", "")
     section = metadata.get("section", "")
+    source_file = metadata.get("source_file", "")
     codes = metadata.get("codes", [])
     if isinstance(codes, list):
         codes_text = ", ".join(str(code) for code in codes)
@@ -46,6 +50,7 @@ def _format_context(index: int, context: dict) -> str:
 
     return f"""[문서 {index}]
 id: {context.get("id", "")}
+source_file: {source_file}
 page: {page_start}-{page_end}
 section: {section}
 codes: {codes_text}

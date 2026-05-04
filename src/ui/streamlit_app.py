@@ -108,6 +108,8 @@ def render_sources(sources: list[dict]) -> None:
             st.markdown(
                 f"""[문서 {index}]
 
+파일: {source.get("source_file") or "-"}
+
 페이지: {source.get("page_start")}~{source.get("page_end")}
 
 섹션: {source.get("section") or "-"}
